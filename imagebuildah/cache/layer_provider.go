@@ -11,11 +11,12 @@ import (
 
 // LayerProvider is an interface for loading and storing layers into a cache system
 type LayerProvider interface {
-	// Returns a cached layer id, based on layer key
-	Load(string) (string, error)
-	Store(string, string) error
-
-	PopulateLayer(ctx context.Context, topLayer string) error
+	// Load downloads installs intermittent image, based on key, and returns a cached layer id, based on layer key
+	Load(context.Context, string) (string, error)
+	// Store the intermittent image into distributed cache
+	Store(context.Context, string, string) error
+	// PopulateLayer allows for the distributed cache to populate information if required
+	PopulateLayer(context.Context, string) error
 }
 
 // CalculateBuildLayerKey calculates the key for a layer that is about to be build

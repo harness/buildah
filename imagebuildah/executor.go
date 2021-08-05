@@ -198,11 +198,22 @@ func NewExecutor(logger *logrus.Logger, store storage.Store, options define.Buil
 		}
 	}
 
+	layerProvider := cache.NewLocalLayerProvider(store)
+
+	if options.DistributedCacheOpts != nil {
+		layerProvider = cache.NewCascadeLayerProvider(
+			[]cache.LayerProvider{
+				layerProvider,
+				cache.NewFileLayerProvider(store, options.SystemContext, options.DistributedCacheOpts.FileCacheDirectory),
+			},
+		)
+	}
+
 	exec := Executor{
 		logger:                         logger,
 		stages:                         make(map[string]*StageExecutor),
 		store:                          store,
-		layerProvider:                  cache.NewLocalLayerProvider(store),
+		layerProvider:                  layerProvider,
 		contextDir:                     options.ContextDirectory,
 		excludes:                       excludes,
 		pullPolicy:                     options.PullPolicy,

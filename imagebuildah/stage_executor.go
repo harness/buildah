@@ -998,15 +998,27 @@ func (s *StageExecutor) Execute(ctx context.Context, base string) (imgID string,
 				}
 			}
 		} else {
+			nextCreatedBy := s.getCreatedBy(node, addedContentSummary)
+			buildAddsLayer := s.stepRequiresLayer(step)
+
 			// We're not going to find any more cache hits, so we
 			// can stop looking for them.
 			checkForLayers = false
 			// Create a new image, maybe with a new layer, with the
 			// name for this stage if it's the last instruction.
 			logCommit(s.output, i)
-			imgID, ref, err = s.commit(ctx, s.getCreatedBy(node, addedContentSummary), !s.stepRequiresLayer(step), commitName)
+			imgID, ref, err = s.commit(ctx, nextCreatedBy, !buildAddsLayer, commitName)
 			if err != nil {
 				return "", nil, errors.Wrapf(err, "error committing container for step %+v", *step)
+			}
+
+			layerKey, err := s.currentLayerKey(ctx, buildAddsLayer, s.builder.TopLayer, nextCreatedBy)
+			if err != nil {
+				return "", nil, errors.Wrapf(err, "failed to calculate the layer key")
+			}
+			err = s.executor.layerProvider.Store(ctx, layerKey, imgID)
+			if err != nil {
+				return "", nil, errors.Wrapf(err, "failed to store the layer in the distributed cache")
 			}
 		}
 		logImageID(imgID)
@@ -1038,6 +1050,7 @@ func (s *StageExecutor) Execute(ctx context.Context, base string) (imgID string,
 			}
 		}
 	}
+
 	return imgID, ref, nil
 }
 
@@ -1156,7 +1169,7 @@ func (s *StageExecutor) cachedIntermediateImageExists(ctx context.Context, build
 		return "", errors.Wrap(err, "failed to obtain the layer key")
 	}
 
-	cacheID, err := s.executor.layerProvider.Load(layerKey)
+	cacheID, err := s.executor.layerProvider.Load(ctx, layerKey)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to obtain the layer id")
 	}

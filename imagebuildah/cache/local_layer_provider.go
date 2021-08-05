@@ -121,7 +121,7 @@ func (llp *LocalLayerProvider) PopulateLayer(ctx context.Context, topLayer strin
 }
 
 // Load returns the image id for the key.
-func (llp *LocalLayerProvider) Load(layerKey string) (string, error) {
+func (llp *LocalLayerProvider) Load(_ context.Context, layerKey string) (string, error) {
 	llp.localLayersLock.Lock()
 	defer llp.localLayersLock.Unlock()
 
@@ -129,7 +129,7 @@ func (llp *LocalLayerProvider) Load(layerKey string) (string, error) {
 }
 
 // Store returns the image id for the key.
-func (llp *LocalLayerProvider) Store(string, string) error {
+func (llp *LocalLayerProvider) Store(context.Context, string, string) error {
 	// This is noop. The build process already have the layer stored
 	return nil
 }

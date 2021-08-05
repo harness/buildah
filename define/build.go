@@ -73,6 +73,12 @@ type CommonBuildOptions struct {
 	Secrets []string
 }
 
+// DistributedCacheOptions are inputs needed to locate and connect to a distributed cache
+type DistributedCacheOptions struct {
+	// FileCacheDirectory is the location for a file system based distributed cache
+	FileCacheDirectory string
+}
+
 // BuildOptions can be used to alter how an image is built.
 type BuildOptions struct {
 	// ContextDirectory is the default source location for COPY and ADD
@@ -184,6 +190,9 @@ type BuildOptions struct {
 	// NoCache tells the builder to build the image from scratch without checking for a cache.
 	// It creates a new set of cached images for the build.
 	NoCache bool
+	// DistributedCacheOpts tells the builder where to store and load the intermittent layers
+	// to allow for distributed cache
+	DistributedCacheOpts *DistributedCacheOptions
 	// RemoveIntermediateCtrs tells the builder whether to remove intermediate containers used
 	// during the build process. Default is true.
 	RemoveIntermediateCtrs bool

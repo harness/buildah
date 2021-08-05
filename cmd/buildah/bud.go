@@ -149,6 +149,13 @@ func budCmd(c *cobra.Command, inputArgs []string, iopts budOptions) error {
 	if c.Flag("layers").Changed {
 		layers = iopts.Layers
 	}
+	var distributedCacheOptions *define.DistributedCacheOptions = nil
+	if c.Flag("file-cache-dir").Value.String() != "" {
+		distributedCacheOptions = &define.DistributedCacheOptions{
+			FileCacheDirectory: iopts.FileCacheDir,
+		}
+	}
+
 	contextDir := ""
 	cliArgs := inputArgs
 
@@ -324,6 +331,7 @@ func budCmd(c *cobra.Command, inputArgs []string, iopts budOptions) error {
 		ContextDirectory:        contextDir,
 		DefaultMountsFilePath:   globalFlagResults.DefaultMountsFile,
 		Devices:                 iopts.Devices,
+		DistributedCacheOpts:    distributedCacheOptions,
 		DropCapabilities:        iopts.CapDrop,
 		Err:                     stderr,
 		ForceRmIntermediateCtrs: iopts.ForceRm,
