@@ -116,7 +116,7 @@ func (flp *FileLayerProvider) Store(ctx context.Context, layerKey string, imageI
 
 	dir := flp.keyDirectory(layerKey)
 
-	destRef, err := file_transport.NewReference(dir)
+	destRef, err := file_transport.NewReference(dir) // should be for s3 call s3 api to store
 	if err != nil {
 		return err
 	}

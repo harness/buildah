@@ -3,6 +3,7 @@ module github.com/containers/buildah
 go 1.12
 
 require (
+	github.com/aws/aws-sdk-go v1.34.29
 	github.com/containernetworking/cni v0.8.1
 	github.com/containers/common v0.41.1-0.20210721112610-c95d2f794edf
 	github.com/containers/image/v5 v5.14.0
