@@ -3,12 +3,12 @@ package file_transport
 import (
 	"context"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 
@@ -187,78 +187,22 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 	}
 
 	blobPath := d.ref.blobPath(computedDigest)
-	// need to explicitly close the file, since a rename won't otherwise not work on Windows
-	blobFile.Close()
-	explicitClosed = true
-
-	if _, err := os.Stat(blobPath); os.IsNotExist(err) {
-		if err := os.Rename(blobFile.Name(), blobPath); err != nil {
-			return types.BlobInfo{}, err
-		}
-	} else {
-		os.Remove(blobFile.Name())
+	s3Config := &aws.Config{
+		Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
+		Endpoint:         aws.String("http://localhost:9000"),
+		Region:           aws.String("us-east-1"),
+		DisableSSL:       aws.Bool(true),
+		S3ForcePathStyle: aws.Bool(true),
 	}
-	succeeded = true
-	return types.BlobInfo{Digest: computedDigest, Size: size}, nil
-}
-
-
-func (d *fileImageDestination) PutBlobToS3(ctx context.Context, stream io.Reader, inputInfo types.BlobInfo, cache types.BlobInfoCache, isConfig bool) (types.BlobInfo, error) {
-	blobRootPath := d.ref.blobRootPath()
-	os.MkdirAll(blobRootPath, 0644)
-
-	blobFile, err := ioutil.TempFile(d.ref.blobRootPath(), "dir-put-blob")
-	if err != nil {
-		return types.BlobInfo{}, err
-	}
-	succeeded := false
-	explicitClosed := false
-	defer func() {
-		if !explicitClosed {
-			blobFile.Close()
-		}
-		if !succeeded {
-			os.Remove(blobFile.Name())
-		}
-	}()
-
-	digester := digest.Canonical.Digester()
-	tee := io.TeeReader(stream, digester.Hash())
-
-	size, err := io.Copy(blobFile, tee)
-	if err != nil {
-		return types.BlobInfo{}, err
-	}
-	computedDigest := digester.Digest()
-	if inputInfo.Size != -1 && size != inputInfo.Size {
-		return types.BlobInfo{}, errors.Errorf("Size mismatch when copying %s, expected %d, got %d", computedDigest, inputInfo.Size, size)
-	}
-	if err := blobFile.Sync(); err != nil {
-		return types.BlobInfo{}, err
-	}
-
-	// On POSIX systems, blobFile was created with mode 0600, so we need to make it readable.
-	// On Windows, the “permissions of newly created files” argument to syscall.Open is
-	// ignored and the file is already readable; besides, blobFile.Chmod, i.e. syscall.Fchmod,
-	// always fails on Windows.
-	if runtime.GOOS != "windows" {
-		if err := blobFile.Chmod(0644); err != nil {
-			return types.BlobInfo{}, err
-		}
-	}
-
-	blobPath := d.ref.blobPath(computedDigest)
-	// need to explicitly close the file, since a rename won't otherwise not work on Windows
 	sess := session.Must(session.NewSession())
 	uploader := s3manager.NewUploader(sess)
-	keyWithPrefix := path.Join("/", "prefix", "key")
 	input := &s3manager.UploadInput{
-		ACL:    aws.String("acl"),
-		Bucket: aws.String("bucket"),
-		Key:    aws.String(keyWithPrefix),
+		Bucket: aws.String("tests3"),
+		Key:    aws.String("testfile"),
 		Body:   blobFile,
 	}
 	_, err = uploader.Upload(input)
+	// need to explicitly close the file, since a rename won't otherwise not work on Windows
 	blobFile.Close()
 	explicitClosed = true
 
