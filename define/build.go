@@ -77,6 +77,8 @@ type CommonBuildOptions struct {
 type DistributedCacheOptions struct {
 	// FileCacheDirectory is the location for a file system based distributed cache
 	FileCacheDirectory string
+	// IsRemote boolean of remote caching
+	IsRemote bool
 }
 
 // BuildOptions can be used to alter how an image is built.

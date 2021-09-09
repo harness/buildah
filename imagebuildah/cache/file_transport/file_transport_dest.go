@@ -31,6 +31,7 @@ type fileImageDestination struct {
 
 // newImageDestination returns an ImageDestination for writing to a directory.
 func newImageDestination(ref fileReference, compress bool) (types.ImageDestination, error) {
+	println("NEW DESTINATION")
 	d := &fileImageDestination{ref: ref, compress: compress}
 
 	// If directory exists check if it is empty
@@ -187,31 +188,41 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 	}
 
 	blobPath := d.ref.blobPath(computedDigest)
-	s3Config := &aws.Config{
-		Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
-		Endpoint:         aws.String("http://localhost:9000"),
-		Region:           aws.String("us-east-1"),
-		DisableSSL:       aws.Bool(true),
-		S3ForcePathStyle: aws.Bool(true),
-	}
-	sess := session.Must(session.NewSession())
-	uploader := s3manager.NewUploader(sess)
-	input := &s3manager.UploadInput{
-		Bucket: aws.String("tests3"),
-		Key:    aws.String("testfile"),
-		Body:   blobFile,
-	}
-	_, err = uploader.Upload(input)
 	// need to explicitly close the file, since a rename won't otherwise not work on Windows
 	blobFile.Close()
 	explicitClosed = true
+	if d.ref.isRemote {
+		// only need to digest, shouldn't bee nee
+		blobToUpload, err := os.Open(blobFile.Name())
+		if err != nil {
+			return types.BlobInfo{}, err
+		}
+		s3Config := &aws.Config{
+			Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
+			Endpoint:         aws.String("http://192.168.1.40:9000"),
+			Region:           aws.String("us-east-1"),
+			DisableSSL:       aws.Bool(true),
+			S3ForcePathStyle: aws.Bool(true),
+		}
+		sess := session.Must(session.NewSession(s3Config))
+		uploader := s3manager.NewUploader(sess)
+		input := &s3manager.UploadInput{
+			Bucket: aws.String("tests3"),
+			Key:    aws.String("blobs/" + computedDigest.Encoded()),
+			Body:   blobToUpload,
+		}
+		_, err = uploader.Upload(input)
+	}
 
 	if _, err := os.Stat(blobPath); os.IsNotExist(err) {
 		if err := os.Rename(blobFile.Name(), blobPath); err != nil {
 			return types.BlobInfo{}, err
 		}
 	} else {
-		os.Remove(blobFile.Name())
+		err = os.Remove(blobFile.Name())
+		if err != nil {
+			println(err.Error())
+		}
 	}
 	succeeded = true
 	return types.BlobInfo{Digest: computedDigest, Size: size}, nil

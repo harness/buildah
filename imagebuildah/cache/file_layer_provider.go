@@ -55,7 +55,7 @@ func (flp *FileLayerProvider) Load(ctx context.Context, layerKey string) (string
 		return "", nil
 	}
 
-	srcRef, err := file_transport.NewReference(dir)
+	srcRef, err := file_transport.NewReference(dir, false)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create reference for %s", layerKey)
 	}
@@ -116,7 +116,7 @@ func (flp *FileLayerProvider) Store(ctx context.Context, layerKey string, imageI
 
 	dir := flp.keyDirectory(layerKey)
 
-	destRef, err := file_transport.NewReference(dir) // should be for s3 call s3 api to store
+	destRef, err := file_transport.NewReference(dir, false)
 	if err != nil {
 		return err
 	}

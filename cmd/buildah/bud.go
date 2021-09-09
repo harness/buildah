@@ -153,6 +153,14 @@ func budCmd(c *cobra.Command, inputArgs []string, iopts budOptions) error {
 	if c.Flag("file-cache-dir").Value.String() != "" {
 		distributedCacheOptions = &define.DistributedCacheOptions{
 			FileCacheDirectory: iopts.FileCacheDir,
+			IsRemote: false,
+		}
+	}
+
+	if c.Flag("s3-cache-dir").Value.String() != "" {
+		distributedCacheOptions = &define.DistributedCacheOptions{
+			FileCacheDirectory: iopts.S3CacheDir,
+			IsRemote: true,
 		}
 	}
 
