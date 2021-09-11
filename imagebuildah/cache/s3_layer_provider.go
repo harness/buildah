@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -37,6 +38,18 @@ func NewS3LayerProvider(store storage.Store, systemContext *types.SystemContext,
 	}
 }
 
+type Manifest struct {
+	SchemaVersion string `json:"schemaVersion"`
+	Config string `json:"config"`
+	Layers []Layer `json:"layers"`
+}
+
+type Layer struct {
+	MediaType   string `json:"mediaType"`
+	Digest   string `json:"digest"`
+	Size    int    `json:"size"`
+}
+
 
 // PopulateLayer scans the local images and adds them to the map.
 func (slp *S3LayerProvider) PopulateLayer(ctx context.Context, topLayer string) error {
@@ -45,11 +58,12 @@ func (slp *S3LayerProvider) PopulateLayer(ctx context.Context, topLayer string) 
 
 // Load returns the image id for the key.
 func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, error) {
+	println("S3 load")
 	dir := slp.keyDirectory(layerKey)
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		// image with that key is not in the cache
-		if !slp.getS3Storage(layerKey) {
+		if !slp.tryDownloadLayerFromS3(layerKey, dir) {
 			return "", nil
 		}
 	}
@@ -90,7 +104,7 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 	return imageID, nil
 }
 
-func (slp *S3LayerProvider) getS3Storage(layerKey string)  bool {
+func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string)  bool {
 	s3Config := &aws.Config{
 		Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
 		Endpoint:         aws.String("http://192.168.1.40:9000"),
@@ -99,22 +113,77 @@ func (slp *S3LayerProvider) getS3Storage(layerKey string)  bool {
 		S3ForcePathStyle: aws.Bool(true),
 	}
 	sess := session.Must(session.NewSession(s3Config))
-	if keyExist(sess, "test3", layerKey) {
-		manager := s3manager.NewDownloader(sess)
-		d := downloader{bucket: "test3", dir: "", Downloader: manager}
-		input := &s3.ListObjectsInput{
-			Bucket: 	aws.String("tests3"),
-			Prefix:    	aws.String(layerKey),
+	manager := s3manager.NewDownloader(sess)
+
+	d := downloader{bucket: "tests3", dir: slp.location, Downloader: manager}
+	input := &s3.ListObjectsInput{
+		Bucket: 	aws.String("tests3"),
+		Prefix:    	aws.String(layerKey),
+	}
+	client := s3.New(sess)
+	err := client.ListObjectsPages(input, d.eachPage)
+	if err != nil {
+		return false
+	}
+	content, err := os.ReadFile(path.Join(dir, "imageID"))
+	if err != nil {
+		return false
+	}
+	imageId := string(content)
+	fpath := path.Join(slp.location, "blobs", imageId)
+	if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
+		panic(err)
+	}
+	file, err := os.Create(fpath)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer file.Close()
+	getLayerInput := &s3.GetObjectInput{
+		Bucket: aws.String("tests3"),
+		Key:    aws.String(path.Join("blobs", imageId)),
+	}
+	numBytes, err := manager.Download(file, getLayerInput)
+	if err != nil || numBytes == 0 {
+		// the layer might not exist
+		return false
+	}
+	fmt.Println("Downloaded", file.Name(), numBytes, "bytes, as image config")
+
+	byteValue, err := ioutil.ReadFile(path.Join(dir, "manifest.json"))
+	if err != nil {
+		return false
+	}
+	println(string(byteValue))
+	var manifest Manifest
+	json.Unmarshal(byteValue, &manifest)
+	for _, layer := range manifest.Layers {
+		println(layer.Digest)
+		if len(layer.Digest) < 7 {
+			continue
 		}
-		client := s3.New(sess)
-		err := client.ListObjectsPages(input, d.eachPage)
+		imageId = layer.Digest[7:]
+		fpath := path.Join(slp.location, "blobs", imageId)
+		if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
+			panic(err)
+		}
+		file, err := os.Create(fpath)
 		if err != nil {
+			fmt.Println(err)
+		}
+		defer file.Close()
+		getLayerInput := &s3.GetObjectInput{
+			Bucket: aws.String("tests3"),
+			Key:    aws.String(path.Join("blobs", imageId)),
+		}
+		numBytes, err := manager.Download(file, getLayerInput)
+		if err != nil || numBytes == 0 {
+			// the layer might not exist
 			return false
 		}
-		return true
+		fmt.Println("Downloaded", file.Name(), numBytes, "bytes, as image layer")
 	}
-	return false
-
+	return true
 }
 
 type downloader struct {
@@ -147,25 +216,10 @@ func (d *downloader) downloadToFile(key string) {
 	// Download the file using the AWS SDK for Go
 	fmt.Printf("Downloading s3://%s/%s to %s...\n", d.bucket, key, file)
 	params := &s3.GetObjectInput{Bucket: &d.bucket, Key: &key}
-	d.Download(fd, params)
-}
-
-
-func keyExist(sess *session.Session, bucket string, key string) bool {
-	s3svc := s3.New(sess)
-	maxKey := int64(1)
-	res, err := s3svc.ListObjectsV2(&s3.ListObjectsV2Input{
-		Bucket: aws.String(bucket),
-		Prefix: aws.String(key),
-		MaxKeys: &maxKey,
-	})
-
+	_, err = d.Download(fd, params)
 	if err != nil {
-		if int(*res.KeyCount) > 0 {
-			return true
-		}
+		println(err.Error())
 	}
-	return true
 }
 
 // Store returns the image id for the key.
