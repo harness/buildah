@@ -31,11 +31,11 @@ type LayerResults struct {
 // S3CacheResults represents the results of the S3 flags
 type S3CacheResults struct {
 	S3CacheDir string
-	S3Bucket string
+	S3Bucket   string
 	S3EndPoint string
-	S3Region string
-	S3Key string
-	S3Secret string
+	S3Region   string
+	S3Key      string
+	S3Secret   string
 }
 
 // UserNSResults represents the results for the UserNS flags

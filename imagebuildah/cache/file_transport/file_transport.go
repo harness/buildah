@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/containers/buildah/define"
+
 	"github.com/containers/buildah/imagebuildah/cache/file_transport/explicitfilepath"
 	"github.com/containers/image/v5/docker/reference"
 	"github.com/containers/image/v5/image"
@@ -30,7 +32,7 @@ func (t fileTransport) Name() string {
 
 // ParseReference converts a string, which should not start with the ImageTransport.Name prefix, into an ImageReference.
 func (t fileTransport) ParseReference(reference string) (types.ImageReference, error) {
-	return NewReference(reference, false, "")
+	return NewReference(reference, nil)
 }
 
 // ValidatePolicyConfigurationScope checks that scope is a valid name for a signature.PolicyTransportScopes keys
@@ -63,8 +65,7 @@ type fileReference struct {
 	// (But in general, we make no attempt to be completely safe against concurrent hostile filesystem modifications.)
 	path         string // As specified by the user. May be relative, contain symlinks, etc.
 	resolvedPath string // Absolute path with no symlinks, at least at the time of its creation. Primarily used for policy namespaces.
-	isRemote bool
-	s3bucket string
+	s3Options    *define.S3CacheOptions
 }
 
 // There is no directory.ParseReference because it is rather pointless.
@@ -76,12 +77,12 @@ type fileReference struct {
 //
 // We do not expose an API supplying the resolvedPath; we could, but recomputing it
 // is generally cheap enough that we prefer being confident about the properties of resolvedPath.
-func NewReference(path string, isRemote bool, bucket string) (types.ImageReference, error) {
+func NewReference(path string, s3Options *define.S3CacheOptions) (types.ImageReference, error) {
 	resolved, err := explicitfilepath.ResolvePathToFullyExplicit(path)
 	if err != nil {
 		return nil, err
 	}
-	return fileReference{path: path, resolvedPath: resolved, isRemote: isRemote, s3bucket: bucket}, nil
+	return fileReference{path: path, resolvedPath: resolved, s3Options: s3Options}, nil
 }
 
 func (ref fileReference) Transport() types.ImageTransport {

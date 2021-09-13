@@ -2,15 +2,16 @@ package file_transport
 
 import (
 	"context"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
 	"github.com/containers/image/v5/types"
 	"github.com/opencontainers/go-digest"
@@ -191,22 +192,22 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 	// need to explicitly close the file, since a rename won't otherwise not work on Windows
 	blobFile.Close()
 	explicitClosed = true
-	if d.ref.isRemote {
+	if d.ref.s3Options != nil {
 		blobToUpload, err := os.Open(blobFile.Name())
 		if err != nil {
 			return types.BlobInfo{}, err
 		}
 		s3Config := &aws.Config{
-			Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
-			Endpoint:         aws.String("http://192.168.1.40:9000"),
-			Region:           aws.String("us-east-1"),
+			Credentials:      credentials.NewStaticCredentials(d.ref.s3Options.S3Key, d.ref.s3Options.S3Secret, ""),
+			Endpoint:         aws.String(d.ref.s3Options.S3EndPoint),
+			Region:           aws.String(d.ref.s3Options.S3Region),
 			DisableSSL:       aws.Bool(true),
 			S3ForcePathStyle: aws.Bool(true),
 		}
 		sess := session.Must(session.NewSession(s3Config))
 		uploader := s3manager.NewUploader(sess)
 		input := &s3manager.UploadInput{
-			Bucket: aws.String(d.ref.s3bucket),
+			Bucket: aws.String(d.ref.s3Options.S3Bucket),
 			Key:    aws.String("blobs/" + computedDigest.Encoded()),
 			Body:   blobToUpload,
 		}

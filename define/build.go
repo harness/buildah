@@ -80,15 +80,15 @@ type CommonBuildOptions struct {
 type DistributedCacheOptions struct {
 	// FileCacheDirectory is the location for a file system based distributed cache
 	FileCacheDirectory string
-	S3Options *S3CacheOptions
+	S3Options          *S3CacheOptions
 }
 
 type S3CacheOptions struct {
-	S3Bucket string
+	S3Bucket   string
 	S3EndPoint string
-	S3Region string
-	S3Key string
-	S3Secret string
+	S3Region   string
+	S3Key      string
+	S3Secret   string
 }
 
 // BuildOptions can be used to alter how an image is built.

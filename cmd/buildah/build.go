@@ -38,8 +38,8 @@ func init() {
   Containerfile nor Dockerfile is present.`
 
 	layerFlagsResults := buildahcli.LayerResults{}
+	buildFlagResults := buildahcli.BudResults{}
 	s3FlagsResults := buildahcli.S3CacheResults{}
-	budFlagResults := buildahcli.BudResults{}
 	fromAndBudResults := buildahcli.FromAndBudResults{}
 	userNSResults := buildahcli.UserNSResults{}
 	namespaceResults := buildahcli.NameSpaceResults{}
@@ -53,7 +53,7 @@ func init() {
 			br := buildOptions{
 				&layerFlagsResults,
 				&s3FlagsResults,
-				&budFlagResults,
+				&buildFlagResults,
 				&userNSResults,
 				&fromAndBudResults,
 				&namespaceResults,
@@ -71,8 +71,8 @@ func init() {
 	flags.SetInterspersed(false)
 
 	// build is a all common flags
-	buildFlags := buildahcli.GetBudFlags(&budFlagResults)
-	buildFlags.StringVar(&budFlagResults.Runtime, "runtime", util.Runtime(), "`path` to an alternate runtime. Use BUILDAH_RUNTIME environment variable to override.")
+	buildFlags := buildahcli.GetBudFlags(&buildFlagResults)
+	buildFlags.StringVar(&buildFlagResults.Runtime, "runtime", util.Runtime(), "`path` to an alternate runtime. Use BUILDAH_RUNTIME environment variable to override.")
 
 	layerFlags := buildahcli.GetLayerFlags(&layerFlagsResults)
 	s3Flags := buildahcli.GetS3Flags(&s3FlagsResults)
@@ -169,15 +169,15 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 
 	if c.Flag("s3-local-cache-dir").Value.String() != "" {
 		s3CacheOptions := &define.S3CacheOptions{
-			S3Bucket: iopts.S3Bucket,
+			S3Bucket:   iopts.S3Bucket,
 			S3EndPoint: iopts.S3EndPoint,
-			S3Region: iopts.S3Region,
-			S3Key: iopts.S3Key,
-			S3Secret: iopts.S3Secret,
+			S3Region:   iopts.S3Region,
+			S3Key:      iopts.S3Key,
+			S3Secret:   iopts.S3Secret,
 		}
 		distributedCacheOptions = &define.DistributedCacheOptions{
 			FileCacheDirectory: iopts.S3CacheDir,
-			S3Options: s3CacheOptions,
+			S3Options:          s3CacheOptions,
 		}
 	}
 

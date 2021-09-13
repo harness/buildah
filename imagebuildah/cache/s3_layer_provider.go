@@ -4,6 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -17,42 +22,37 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage"
 	"github.com/pkg/errors"
-	"io/ioutil"
-	"os"
-	"path"
-	"path/filepath"
 )
 
 // S3LayerProvider is an implementation of the LayerProvider that
 type S3LayerProvider struct {
-	store         storage.Store
-	systemContext *types.SystemContext
-	location string
+	store          storage.Store
+	systemContext  *types.SystemContext
+	location       string
 	s3CacheOptions *define.S3CacheOptions
 }
 
 // NewS3LayerProvider creates a new instance of the CascadeLayerProvider.
 func NewS3LayerProvider(store storage.Store, systemContext *types.SystemContext, location string, s3CacheOptions *define.S3CacheOptions) LayerProvider {
 	return &S3LayerProvider{
-		store:         store,
-		systemContext: systemContext,
-		location: location,
+		store:          store,
+		systemContext:  systemContext,
+		location:       location,
 		s3CacheOptions: s3CacheOptions,
 	}
 }
 
 type Manifest struct {
-	SchemaVersion string `json:"schemaVersion"`
-	Config string `json:"config"`
-	Layers []Layer `json:"layers"`
+	SchemaVersion string  `json:"schemaVersion"`
+	Config        string  `json:"config"`
+	Layers        []Layer `json:"layers"`
 }
 
 type Layer struct {
-	MediaType   string `json:"mediaType"`
-	Digest   string `json:"digest"`
-	Size    int    `json:"size"`
+	MediaType string `json:"mediaType"`
+	Digest    string `json:"digest"`
+	Size      int    `json:"size"`
 }
-
 
 // PopulateLayer scans the local images and adds them to the map.
 func (slp *S3LayerProvider) PopulateLayer(ctx context.Context, topLayer string) error {
@@ -70,7 +70,7 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 		}
 	}
 
-	srcRef, err := file_transport.NewReference(dir, false, slp.s3CacheOptions.S3Bucket)
+	srcRef, err := file_transport.NewReference(dir, slp.s3CacheOptions)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create reference for %s", layerKey)
 	}
@@ -106,7 +106,7 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 	return imageID, nil
 }
 
-func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string)  bool {
+func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) bool {
 	s3Config := &aws.Config{
 		Credentials:      credentials.NewStaticCredentials(slp.s3CacheOptions.S3Key, slp.s3CacheOptions.S3Secret, ""),
 		Endpoint:         aws.String(slp.s3CacheOptions.S3EndPoint),
@@ -119,8 +119,8 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 
 	d := downloader{bucket: slp.s3CacheOptions.S3Bucket, dir: slp.location, Downloader: manager}
 	input := &s3.ListObjectsInput{
-		Bucket: 	aws.String(slp.s3CacheOptions.S3Bucket),
-		Prefix:    	aws.String(layerKey),
+		Bucket: aws.String(slp.s3CacheOptions.S3Bucket),
+		Prefix: aws.String(layerKey),
 	}
 	client := s3.New(sess)
 	err := client.ListObjectsPages(input, d.eachPage)
@@ -250,7 +250,7 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 
 	dir := slp.keyDirectory(layerKey)
 
-	destRef, err := file_transport.NewReference(dir, true, slp.s3CacheOptions.S3Bucket)
+	destRef, err := file_transport.NewReference(dir, slp.s3CacheOptions)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,6 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 	if err != nil {
 		return errors.Wrapf(err, "failed to store image id file %q", imageID)
 	}
-
 
 	file, _ := os.ReadDir(dir)
 	s3Config := &aws.Config{
