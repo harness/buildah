@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/containers/buildah/define"
 	"github.com/containers/buildah/imagebuildah/cache/file_transport"
 	"github.com/containers/buildah/util"
 	"github.com/containers/image/v5/copy"
@@ -26,17 +27,17 @@ import (
 type S3LayerProvider struct {
 	store         storage.Store
 	systemContext *types.SystemContext
-	location      string
-	bucket		  string
+	location string
+	s3CacheOptions *define.S3CacheOptions
 }
 
 // NewS3LayerProvider creates a new instance of the CascadeLayerProvider.
-func NewS3LayerProvider(store storage.Store, systemContext *types.SystemContext, location string, bucket string) LayerProvider {
+func NewS3LayerProvider(store storage.Store, systemContext *types.SystemContext, location string, s3CacheOptions *define.S3CacheOptions) LayerProvider {
 	return &S3LayerProvider{
 		store:         store,
 		systemContext: systemContext,
-		location:      location,
-		bucket: 	   bucket,
+		location: location,
+		s3CacheOptions: s3CacheOptions,
 	}
 }
 
@@ -69,7 +70,7 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 		}
 	}
 
-	srcRef, err := file_transport.NewReference(dir, false, slp.bucket)
+	srcRef, err := file_transport.NewReference(dir, false, slp.s3CacheOptions.S3Bucket)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create reference for %s", layerKey)
 	}
@@ -107,18 +108,18 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 
 func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string)  bool {
 	s3Config := &aws.Config{
-		Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
-		Endpoint:         aws.String("http://192.168.1.40:9000"),
-		Region:           aws.String("us-east-1"),
+		Credentials:      credentials.NewStaticCredentials(slp.s3CacheOptions.S3Key, slp.s3CacheOptions.S3Secret, ""),
+		Endpoint:         aws.String(slp.s3CacheOptions.S3EndPoint),
+		Region:           aws.String(slp.s3CacheOptions.S3Region),
 		DisableSSL:       aws.Bool(true),
 		S3ForcePathStyle: aws.Bool(true),
 	}
 	sess := session.Must(session.NewSession(s3Config))
 	manager := s3manager.NewDownloader(sess)
 
-	d := downloader{bucket: slp.bucket, dir: slp.location, Downloader: manager}
+	d := downloader{bucket: slp.s3CacheOptions.S3Bucket, dir: slp.location, Downloader: manager}
 	input := &s3.ListObjectsInput{
-		Bucket: 	aws.String(slp.bucket),
+		Bucket: 	aws.String(slp.s3CacheOptions.S3Bucket),
 		Prefix:    	aws.String(layerKey),
 	}
 	client := s3.New(sess)
@@ -141,7 +142,7 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 	}
 	defer file.Close()
 	getLayerInput := &s3.GetObjectInput{
-		Bucket: aws.String(slp.bucket),
+		Bucket: aws.String(slp.s3CacheOptions.S3Bucket),
 		Key:    aws.String(path.Join("blobs", imageId)),
 	}
 	numBytes, err := manager.Download(file, getLayerInput)
@@ -163,24 +164,28 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 		}
 		imageId = layer.Digest[7:]
 		fpath := path.Join(slp.location, "blobs", imageId)
-		if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
-			panic(err)
+		if _, err := os.Stat(fpath); os.IsNotExist(err) {
+			if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
+				panic(err)
+			}
+			file, err := os.Create(fpath)
+			if err != nil {
+				fmt.Println(err)
+			}
+			defer file.Close()
+			getLayerInput := &s3.GetObjectInput{
+				Bucket: aws.String(slp.s3CacheOptions.S3Bucket),
+				Key:    aws.String(path.Join("blobs", imageId)),
+			}
+			numBytes, err := manager.Download(file, getLayerInput)
+			if err != nil || numBytes == 0 {
+				// the layer might not exist
+				return false
+			}
+			fmt.Println("Downloaded", file.Name(), numBytes, "bytes, as image layer")
+		} else {
+			println(fpath, "existed in local cache, skipping download")
 		}
-		file, err := os.Create(fpath)
-		if err != nil {
-			fmt.Println(err)
-		}
-		defer file.Close()
-		getLayerInput := &s3.GetObjectInput{
-			Bucket: aws.String(slp.bucket),
-			Key:    aws.String(path.Join("blobs", imageId)),
-		}
-		numBytes, err := manager.Download(file, getLayerInput)
-		if err != nil || numBytes == 0 {
-			// the layer might not exist
-			return false
-		}
-		fmt.Println("Downloaded", file.Name(), numBytes, "bytes, as image layer")
 	}
 	return true
 }
@@ -245,7 +250,7 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 
 	dir := slp.keyDirectory(layerKey)
 
-	destRef, err := file_transport.NewReference(dir, true, slp.bucket)
+	destRef, err := file_transport.NewReference(dir, true, slp.s3CacheOptions.S3Bucket)
 	if err != nil {
 		return err
 	}
@@ -269,9 +274,9 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 
 	file, _ := os.ReadDir(dir)
 	s3Config := &aws.Config{
-		Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
-		Endpoint:         aws.String("http://192.168.1.40:9000"),
-		Region:           aws.String("us-east-1"),
+		Credentials:      credentials.NewStaticCredentials(slp.s3CacheOptions.S3Key, slp.s3CacheOptions.S3Secret, ""),
+		Endpoint:         aws.String(slp.s3CacheOptions.S3EndPoint),
+		Region:           aws.String(slp.s3CacheOptions.S3Region),
 		DisableSSL:       aws.Bool(true),
 		S3ForcePathStyle: aws.Bool(true),
 	}
@@ -280,7 +285,7 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 	for _, s := range file {
 		blob, _ := os.Open(path.Join(dir, s.Name()))
 		input := &s3manager.UploadInput{
-			Bucket: aws.String(slp.bucket),
+			Bucket: aws.String(slp.s3CacheOptions.S3Bucket),
 			Key:    aws.String(path.Join(layerKey, s.Name())),
 			Body:   blob,
 		}

@@ -21,6 +21,7 @@ import (
 
 type budOptions struct {
 	*buildahcli.LayerResults
+	*buildahcli.S3CacheResults
 	*buildahcli.BudResults
 	*buildahcli.UserNSResults
 	*buildahcli.FromAndBudResults
@@ -36,6 +37,7 @@ func init() {
   Dockerfile is present.`
 
 	layerFlagsResults := buildahcli.LayerResults{}
+	s3FlagsResults := buildahcli.S3CacheResults{}
 	budFlagResults := buildahcli.BudResults{}
 	fromAndBudResults := buildahcli.FromAndBudResults{}
 	userNSResults := buildahcli.UserNSResults{}
@@ -49,6 +51,7 @@ func init() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			br := budOptions{
 				&layerFlagsResults,
+				&s3FlagsResults,
 				&budFlagResults,
 				&userNSResults,
 				&fromAndBudResults,
@@ -71,6 +74,7 @@ func init() {
 	budFlags.StringVar(&budFlagResults.Runtime, "runtime", util.Runtime(), "`path` to an alternate runtime. Use BUILDAH_RUNTIME environment variable to override.")
 
 	layerFlags := buildahcli.GetLayerFlags(&layerFlagsResults)
+	s3Flags := buildahcli.GetS3Flags(&s3FlagsResults)
 	fromAndBudFlags, err := buildahcli.GetFromAndBudFlags(&fromAndBudResults, &userNSResults, &namespaceResults)
 	if err != nil {
 		logrus.Errorf("failed to setup From and Bud flags: %v", err)
@@ -80,6 +84,7 @@ func init() {
 	flags.AddFlagSet(&budFlags)
 	flags.AddFlagSet(&layerFlags)
 	flags.AddFlagSet(&fromAndBudFlags)
+	flags.AddFlagSet(&s3Flags)
 	flags.SetNormalizeFunc(buildahcli.AliasFlags)
 
 	rootCmd.AddCommand(budCommand)
@@ -153,15 +158,20 @@ func budCmd(c *cobra.Command, inputArgs []string, iopts budOptions) error {
 	if c.Flag("file-cache-dir").Value.String() != "" {
 		distributedCacheOptions = &define.DistributedCacheOptions{
 			FileCacheDirectory: iopts.FileCacheDir,
-			IsRemote: false,
 		}
 	}
 
 	if c.Flag("s3-cache-dir").Value.String() != "" {
+		s3CacheOptions := &define.S3CacheOptions{
+			S3Bucket: iopts.S3Bucket,
+			S3EndPoint: iopts.S3EndPoint,
+			S3Region: iopts.S3Region,
+			S3Key: iopts.S3Key,
+			S3Secret: iopts.S3Secret,
+		}
 		distributedCacheOptions = &define.DistributedCacheOptions{
 			FileCacheDirectory: iopts.S3CacheDir,
-			IsRemote: true,
-			S3Bucket: iopts.S3Bucket,
+			S3Options: s3CacheOptions,
 		}
 	}
 
