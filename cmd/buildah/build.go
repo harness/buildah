@@ -38,12 +38,8 @@ func init() {
   Containerfile nor Dockerfile is present.`
 
 	layerFlagsResults := buildahcli.LayerResults{}
-<<<<<<< HEAD:cmd/buildah/bud.go
 	s3FlagsResults := buildahcli.S3CacheResults{}
 	budFlagResults := buildahcli.BudResults{}
-=======
-	buildFlagResults := buildahcli.BudResults{}
->>>>>>> 8641861de37d170475f9389cf50ff2ec92eb430a:cmd/buildah/build.go
 	fromAndBudResults := buildahcli.FromAndBudResults{}
 	userNSResults := buildahcli.UserNSResults{}
 	namespaceResults := buildahcli.NameSpaceResults{}
@@ -56,12 +52,8 @@ func init() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			br := buildOptions{
 				&layerFlagsResults,
-<<<<<<< HEAD:cmd/buildah/bud.go
 				&s3FlagsResults,
 				&budFlagResults,
-=======
-				&buildFlagResults,
->>>>>>> 8641861de37d170475f9389cf50ff2ec92eb430a:cmd/buildah/build.go
 				&userNSResults,
 				&fromAndBudResults,
 				&namespaceResults,
@@ -79,8 +71,8 @@ func init() {
 	flags.SetInterspersed(false)
 
 	// build is a all common flags
-	buildFlags := buildahcli.GetBudFlags(&buildFlagResults)
-	buildFlags.StringVar(&buildFlagResults.Runtime, "runtime", util.Runtime(), "`path` to an alternate runtime. Use BUILDAH_RUNTIME environment variable to override.")
+	buildFlags := buildahcli.GetBudFlags(&budFlagResults)
+	buildFlags.StringVar(&budFlagResults.Runtime, "runtime", util.Runtime(), "`path` to an alternate runtime. Use BUILDAH_RUNTIME environment variable to override.")
 
 	layerFlags := buildahcli.GetLayerFlags(&layerFlagsResults)
 	s3Flags := buildahcli.GetS3Flags(&s3FlagsResults)
@@ -175,7 +167,6 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 		}
 	}
 
-<<<<<<< HEAD:cmd/buildah/bud.go
 	if c.Flag("s3-local-cache-dir").Value.String() != "" {
 		s3CacheOptions := &define.S3CacheOptions{
 			S3Bucket: iopts.S3Bucket,
@@ -190,8 +181,6 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 		}
 	}
 
-=======
->>>>>>> 8641861de37d170475f9389cf50ff2ec92eb430a:cmd/buildah/build.go
 	contextDir := ""
 	cliArgs := inputArgs
 
