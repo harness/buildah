@@ -205,7 +205,7 @@ func NewExecutor(logger *logrus.Logger, store storage.Store, options define.Buil
 			layerProvider = cache.NewCascadeLayerProvider(
 				[]cache.LayerProvider{
 					layerProvider,
-					cache.NewS3LayerProvider(store, options.SystemContext, options.DistributedCacheOpts.FileCacheDirectory),
+					cache.NewS3LayerProvider(store, options.SystemContext, options.DistributedCacheOpts.FileCacheDirectory, options.DistributedCacheOpts.S3Bucket),
 				},
 			)
 		} else {

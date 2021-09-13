@@ -30,7 +30,7 @@ func (t fileTransport) Name() string {
 
 // ParseReference converts a string, which should not start with the ImageTransport.Name prefix, into an ImageReference.
 func (t fileTransport) ParseReference(reference string) (types.ImageReference, error) {
-	return NewReference(reference, false)
+	return NewReference(reference, false, "")
 }
 
 // ValidatePolicyConfigurationScope checks that scope is a valid name for a signature.PolicyTransportScopes keys
@@ -64,6 +64,7 @@ type fileReference struct {
 	path         string // As specified by the user. May be relative, contain symlinks, etc.
 	resolvedPath string // Absolute path with no symlinks, at least at the time of its creation. Primarily used for policy namespaces.
 	isRemote bool
+	s3bucket string
 }
 
 // There is no directory.ParseReference because it is rather pointless.
@@ -75,12 +76,12 @@ type fileReference struct {
 //
 // We do not expose an API supplying the resolvedPath; we could, but recomputing it
 // is generally cheap enough that we prefer being confident about the properties of resolvedPath.
-func NewReference(path string, isRemote bool) (types.ImageReference, error) {
+func NewReference(path string, isRemote bool, bucket string) (types.ImageReference, error) {
 	resolved, err := explicitfilepath.ResolvePathToFullyExplicit(path)
 	if err != nil {
 		return nil, err
 	}
-	return fileReference{path: path, resolvedPath: resolved, isRemote: isRemote}, nil
+	return fileReference{path: path, resolvedPath: resolved, isRemote: isRemote, s3bucket: bucket}, nil
 }
 
 func (ref fileReference) Transport() types.ImageTransport {

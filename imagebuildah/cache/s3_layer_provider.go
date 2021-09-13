@@ -27,14 +27,16 @@ type S3LayerProvider struct {
 	store         storage.Store
 	systemContext *types.SystemContext
 	location      string
+	bucket		  string
 }
 
 // NewS3LayerProvider creates a new instance of the CascadeLayerProvider.
-func NewS3LayerProvider(store storage.Store, systemContext *types.SystemContext, location string) LayerProvider {
+func NewS3LayerProvider(store storage.Store, systemContext *types.SystemContext, location string, bucket string) LayerProvider {
 	return &S3LayerProvider{
 		store:         store,
 		systemContext: systemContext,
 		location:      location,
+		bucket: 	   bucket,
 	}
 }
 
@@ -58,7 +60,6 @@ func (slp *S3LayerProvider) PopulateLayer(ctx context.Context, topLayer string) 
 
 // Load returns the image id for the key.
 func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, error) {
-	println("S3 load")
 	dir := slp.keyDirectory(layerKey)
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -68,7 +69,7 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 		}
 	}
 
-	srcRef, err := file_transport.NewReference(dir, false)
+	srcRef, err := file_transport.NewReference(dir, false, slp.bucket)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create reference for %s", layerKey)
 	}
@@ -115,9 +116,9 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 	sess := session.Must(session.NewSession(s3Config))
 	manager := s3manager.NewDownloader(sess)
 
-	d := downloader{bucket: "tests3", dir: slp.location, Downloader: manager}
+	d := downloader{bucket: slp.bucket, dir: slp.location, Downloader: manager}
 	input := &s3.ListObjectsInput{
-		Bucket: 	aws.String("tests3"),
+		Bucket: 	aws.String(slp.bucket),
 		Prefix:    	aws.String(layerKey),
 	}
 	client := s3.New(sess)
@@ -140,7 +141,7 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 	}
 	defer file.Close()
 	getLayerInput := &s3.GetObjectInput{
-		Bucket: aws.String("tests3"),
+		Bucket: aws.String(slp.bucket),
 		Key:    aws.String(path.Join("blobs", imageId)),
 	}
 	numBytes, err := manager.Download(file, getLayerInput)
@@ -154,11 +155,9 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 	if err != nil {
 		return false
 	}
-	println(string(byteValue))
 	var manifest Manifest
 	json.Unmarshal(byteValue, &manifest)
 	for _, layer := range manifest.Layers {
-		println(layer.Digest)
 		if len(layer.Digest) < 7 {
 			continue
 		}
@@ -173,7 +172,7 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 		}
 		defer file.Close()
 		getLayerInput := &s3.GetObjectInput{
-			Bucket: aws.String("tests3"),
+			Bucket: aws.String(slp.bucket),
 			Key:    aws.String(path.Join("blobs", imageId)),
 		}
 		numBytes, err := manager.Download(file, getLayerInput)
@@ -225,7 +224,6 @@ func (d *downloader) downloadToFile(key string) {
 // Store returns the image id for the key.
 func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID string) error {
 	os.MkdirAll(slp.location, 0644)
-	println("S3!!")
 	srcRef, err := is.Transport.ParseStoreReference(slp.store, "@"+imageID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to obtain the image reference %q", imageID)
@@ -247,7 +245,7 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 
 	dir := slp.keyDirectory(layerKey)
 
-	destRef, err := file_transport.NewReference(dir, true)
+	destRef, err := file_transport.NewReference(dir, true, slp.bucket)
 	if err != nil {
 		return err
 	}
@@ -282,7 +280,7 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 	for _, s := range file {
 		blob, _ := os.Open(path.Join(dir, s.Name()))
 		input := &s3manager.UploadInput{
-			Bucket: aws.String("tests3"),
+			Bucket: aws.String(slp.bucket),
 			Key:    aws.String(path.Join(layerKey, s.Name())),
 			Body:   blob,
 		}

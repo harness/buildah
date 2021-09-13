@@ -27,6 +27,7 @@ type LayerResults struct {
 	Layers       bool
 	FileCacheDir string
 	S3CacheDir string
+	S3Bucket string
 }
 
 // UserNSResults represents the results for the UserNS flags
@@ -170,6 +171,7 @@ func GetLayerFlags(flags *LayerResults) pflag.FlagSet {
 	fs.BoolVar(&flags.Layers, "layers", UseLayers(), fmt.Sprintf("cache intermediate layers during build. Use BUILDAH_LAYERS environment variable to override."))
 	fs.StringVar(&flags.FileCacheDir, "file-cache-dir", "", "root directory for file system based distributed cache.")
 	fs.StringVar(&flags.S3CacheDir, "s3-cache-dir", "", "root directory for S3 based distributed cache.")
+	fs.StringVar(&flags.S3Bucket, "bucket", "", "s3 bucket name")
 	return fs
 }
 

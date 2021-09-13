@@ -26,12 +26,12 @@ var ErrNotContainerImageDir = errors.New("not a containers image directory, don'
 
 type fileImageDestination struct {
 	ref      fileReference
+	s3bucket string
 	compress bool
 }
 
 // newImageDestination returns an ImageDestination for writing to a directory.
 func newImageDestination(ref fileReference, compress bool) (types.ImageDestination, error) {
-	println("NEW DESTINATION")
 	d := &fileImageDestination{ref: ref, compress: compress}
 
 	// If directory exists check if it is empty
@@ -192,7 +192,6 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 	blobFile.Close()
 	explicitClosed = true
 	if d.ref.isRemote {
-		// only need to digest, shouldn't bee nee
 		blobToUpload, err := os.Open(blobFile.Name())
 		if err != nil {
 			return types.BlobInfo{}, err
@@ -207,7 +206,7 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 		sess := session.Must(session.NewSession(s3Config))
 		uploader := s3manager.NewUploader(sess)
 		input := &s3manager.UploadInput{
-			Bucket: aws.String("tests3"),
+			Bucket: aws.String(d.ref.s3bucket),
 			Key:    aws.String("blobs/" + computedDigest.Encoded()),
 			Body:   blobToUpload,
 		}

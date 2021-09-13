@@ -161,6 +161,7 @@ func budCmd(c *cobra.Command, inputArgs []string, iopts budOptions) error {
 		distributedCacheOptions = &define.DistributedCacheOptions{
 			FileCacheDirectory: iopts.S3CacheDir,
 			IsRemote: true,
+			S3Bucket: iopts.S3Bucket,
 		}
 	}
 

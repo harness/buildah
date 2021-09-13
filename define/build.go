@@ -79,6 +79,7 @@ type DistributedCacheOptions struct {
 	FileCacheDirectory string
 	// IsRemote boolean of remote caching
 	IsRemote bool
+	S3Bucket string
 }
 
 // BuildOptions can be used to alter how an image is built.
