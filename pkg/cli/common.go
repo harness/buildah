@@ -23,8 +23,9 @@ import (
 
 // LayerResults represents the results of the layer flags
 type LayerResults struct {
-	ForceRm bool
-	Layers  bool
+	ForceRm      bool
+	Layers       bool
+	FileCacheDir string
 }
 
 // UserNSResults represents the results for the UserNS flags
@@ -167,6 +168,7 @@ func GetLayerFlags(flags *LayerResults) pflag.FlagSet {
 	fs := pflag.FlagSet{}
 	fs.BoolVar(&flags.ForceRm, "force-rm", false, "Always remove intermediate containers after a build, even if the build is unsuccessful.")
 	fs.BoolVar(&flags.Layers, "layers", UseLayers(), fmt.Sprintf("cache intermediate layers during build. Use BUILDAH_LAYERS environment variable to override."))
+	fs.StringVar(&flags.FileCacheDir, "file-cache-dir", "", "root directory for file system based distributed cache.")
 	return fs
 }
 

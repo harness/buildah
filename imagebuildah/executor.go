@@ -14,6 +14,7 @@ import (
 
 	"github.com/containers/buildah"
 	"github.com/containers/buildah/define"
+	"github.com/containers/buildah/imagebuildah/cache"
 	"github.com/containers/buildah/pkg/parse"
 	"github.com/containers/buildah/pkg/sshagent"
 	"github.com/containers/buildah/util"
@@ -60,6 +61,7 @@ type Executor struct {
 	logger                         *logrus.Logger
 	stages                         map[string]*StageExecutor
 	store                          storage.Store
+	layerProvider                  cache.LayerProvider
 	contextDir                     string
 	pullPolicy                     define.PullPolicy
 	registry                       string
@@ -202,10 +204,22 @@ func newExecutor(logger *logrus.Logger, logPrefix string, store storage.Store, o
 		}
 	}
 
+	layerProvider := cache.NewLocalLayerProvider(store)
+
+	if options.DistributedCacheOpts != nil {
+		layerProvider = cache.NewCascadeLayerProvider(
+			[]cache.LayerProvider{
+				layerProvider,
+				cache.NewFileLayerProvider(store, options.SystemContext, options.DistributedCacheOpts.FileCacheDirectory),
+			},
+		)
+	}
+
 	exec := Executor{
 		logger:                         logger,
 		stages:                         make(map[string]*StageExecutor),
 		store:                          store,
+		layerProvider:                  layerProvider,
 		contextDir:                     options.ContextDirectory,
 		excludes:                       excludes,
 		pullPolicy:                     options.PullPolicy,
