@@ -161,7 +161,7 @@ func budCmd(c *cobra.Command, inputArgs []string, iopts budOptions) error {
 		}
 	}
 
-	if c.Flag("s3-cache-dir").Value.String() != "" {
+	if c.Flag("s3-local-cache-dir").Value.String() != "" {
 		s3CacheOptions := &define.S3CacheOptions{
 			S3Bucket: iopts.S3Bucket,
 			S3EndPoint: iopts.S3EndPoint,

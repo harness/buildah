@@ -184,12 +184,12 @@ func GetLayerFlags(flags *LayerResults) pflag.FlagSet {
 // GetS3Flags returns the common flags for S3
 func GetS3Flags(flags *S3CacheResults) pflag.FlagSet {
 	fs := pflag.FlagSet{}
-	fs.StringVar(&flags.S3CacheDir, "s3-cache-dir", "", "root directory for S3 based distributed cache.")
-	fs.StringVar(&flags.S3Bucket, "bucket", "", "s3 bucket name")
-	fs.StringVar(&flags.S3EndPoint, "s3-endpoint", "", "s3 endpoint url")
+	fs.StringVar(&flags.S3CacheDir, "s3-local-cache-dir", "", "local directory for S3 based cache.")
+	fs.StringVar(&flags.S3Bucket, "s3-bucket", "", "S3 bucket name")
+	fs.StringVar(&flags.S3EndPoint, "s3-endpoint", "", "S3 endpoint address")
 	fs.StringVar(&flags.S3Region, "s3-region", "", "s3 region")
-	fs.StringVar(&flags.S3Key, "s3-key", "", "s3 key")
-	fs.StringVar(&flags.S3Secret, "s3-secret", "", "s3 key")
+	fs.StringVar(&flags.S3Key, "s3-key", "", "S3 key")
+	fs.StringVar(&flags.S3Secret, "s3-secret", "", "S3 key")
 	return fs
 }
 
