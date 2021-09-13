@@ -205,7 +205,6 @@ func (r *blobCacheReference) NewImageSource(ctx context.Context, sys *types.Syst
 }
 
 func (r *blobCacheReference) NewImageDestination(ctx context.Context, sys *types.SystemContext) (types.ImageDestination, error) {
-	println("BLOBCACHE")
 	dest, err := r.reference.NewImageDestination(ctx, sys)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error creating new image destination %q", transports.ImageName(r.reference))
@@ -443,7 +442,6 @@ func (d *blobCacheDestination) HasThreadSafePutBlob() bool {
 }
 
 func (d *blobCacheDestination) PutBlob(ctx context.Context, stream io.Reader, inputInfo types.BlobInfo, cache types.BlobInfoCache, isConfig bool) (types.BlobInfo, error) {
-	println("BLOBCACHEEEEE")
 	var tempfile *os.File
 	var err error
 	var n int
@@ -527,7 +525,6 @@ func (d *blobCacheDestination) PutBlob(ctx context.Context, stream io.Reader, in
 }
 
 func (d *blobCacheDestination) TryReusingBlob(ctx context.Context, info types.BlobInfo, cache types.BlobInfoCache, canSubstitute bool) (bool, types.BlobInfo, error) {
-	println("TRYYREUSINGBLOB")
 	present, reusedInfo, err := d.destination.TryReusingBlob(ctx, info, cache, canSubstitute)
 	if err != nil || present {
 		return present, reusedInfo, err

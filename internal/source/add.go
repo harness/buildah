@@ -45,7 +45,6 @@ func (o *AddOptions) annotations() (map[string]string, error) {
 // tar ball.  Add attempts to auto-tar and auto-compress only if necessary.
 func Add(ctx context.Context, sourcePath string, artifactPath string, options AddOptions) error {
 	// Let's first make sure `sourcePath` exists and that we can access it.
-	println("ADDDDDD")
 	if _, err := os.Stat(sourcePath); err != nil {
 		return err
 	}

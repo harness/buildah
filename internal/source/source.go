@@ -85,7 +85,6 @@ func readManifestFromOCIPath(ctx context.Context, sourcePath string) (*specV1.Ma
 // specified `sourcePath`.  Note that if the path doesn't exist, it'll be
 // created along with the OCI directory layout.
 func openOrCreateSourceImage(ctx context.Context, sourcePath string) (types.ImageDestination, error) {
-	println("CREATE DESTINATION")
 	ociRef, err := layout.ParseReference(sourcePath)
 	if err != nil {
 		return nil, err
@@ -98,7 +97,6 @@ func openOrCreateSourceImage(ctx context.Context, sourcePath string) (types.Imag
 // addConfig adds `config` to `ociDest` and returns the corresponding blob
 // info.
 func addConfig(ctx context.Context, config *ImageConfig, ociDest types.ImageDestination) (*types.BlobInfo, error) {
-	println("SOURCEEEE")
 	rawData, err := json.Marshal(config)
 	if err != nil {
 		return nil, errors.Wrap(err, "error marshalling config")
