@@ -434,6 +434,7 @@ return 1
      --os
      --pid
      --platform
+     --platforms
      --runtime
      --runtime-flag
      --security-opt
@@ -1183,7 +1184,7 @@ esac
    local commands=(
        add
        bud
-       build-using-dockerfile
+       build
        commit
        config
        containers

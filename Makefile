@@ -1,7 +1,7 @@
 export GOPROXY=https://proxy.golang.org
 
 APPARMORTAG := $(shell hack/apparmor_tag.sh)
-STORAGETAGS := $(shell ./btrfs_tag.sh) $(shell ./btrfs_installed_tag.sh) $(shell ./libdm_tag.sh)
+STORAGETAGS := $(shell ./btrfs_tag.sh) $(shell ./btrfs_installed_tag.sh) $(shell ./libdm_tag.sh) $(shell ./hack/libsubid_tag.sh)
 SECURITYTAGS ?= seccomp $(APPARMORTAG)
 TAGS ?= $(SECURITYTAGS) $(STORAGETAGS)
 BUILDTAGS += $(TAGS)
@@ -34,7 +34,7 @@ LIBSECCOMP_COMMIT := release-2.3
 
 EXTRA_LDFLAGS ?=
 BUILDAH_LDFLAGS := -ldflags '-X main.GitCommit=$(GIT_COMMIT) -X main.buildInfo=$(SOURCE_DATE_EPOCH) -X main.cniVersion=$(CNI_COMMIT) $(EXTRA_LDFLAGS)'
-SOURCES=*.go imagebuildah/*.go imagebuildah/cache/*.go imagebuildah/cache/file_transport/*.go imagebuildah/cache/file_transport/explicitfilepath/*.go bind/*.go chroot/*.go copier/*.go docker/*.go manifests/*.go pkg/blobcache/*.go pkg/chrootuser/*.go pkg/cli/*.go pkg/formats/*.go pkg/manifests/*.go pkg/overlay/*.go pkg/parse/*.go pkg/rusage/*.go util/*.go
+SOURCES=*.go imagebuildah/*.go imagebuildah/cache/*.go imagebuildah/cache/file_transport/*.go imagebuildah/cache/file_transport/explicitfilepath/*.go bind/*.go chroot/*.go copier/*.go docker/*.go manifests/*.go pkg/blobcache/*.go pkg/chrootuser/*.go pkg/cli/*.go pkg/completion/*.go pkg/formats/*.go pkg/overlay/*.go pkg/parse/*.go pkg/rusage/*.go pkg/sshagent/*.go pkg/umask/*.go pkg/util/*.go util/*.go
 
 LINTFLAGS ?=
 
@@ -70,8 +70,11 @@ bin/buildah: $(SOURCES) cmd/buildah/*.go
 .PHONY: buildah
 buildah: bin/buildah
 
+LINUX_CROSS_TARGETS = $(addprefix bin/buildah.,$(subst /,.,$(shell $(GO) tool dist list | grep ^linux/)))
+DARWIN_CROSS_TARGETS = $(addprefix bin/buildah.,$(subst /,.,$(shell $(GO) tool dist list | grep ^darwin/)))
+WINDOWS_CROSS_TARGETS = $(addsuffix .exe,$(addprefix bin/buildah.,$(subst /,.,$(shell $(GO) tool dist list | grep ^windows/))))
 .PHONY: cross
-cross: bin/buildah.darwin.amd64 bin/buildah.linux.386 bin/buildah.linux.amd64 bin/buildah.linux.arm64 bin/buildah.linux.arm bin/buildah.linux.mips64 bin/buildah.linux.mips64le bin/buildah.linux.mips bin/buildah.linux.mipsle bin/buildah.linux.ppc64 bin/buildah.linux.ppc64le bin/buildah.linux.riscv64 bin/buildah.linux.s390x bin/buildah.windows.amd64.exe
+cross: $(LINUX_CROSS_TARGETS) $(DARWIN_CROSS_TARGETS) $(WINDOWS_CROSS_TARGETS)
 
 bin/buildah.%:
 	mkdir -p ./bin
@@ -99,7 +102,7 @@ gopath:
 	test $(shell pwd) = $(shell cd ../../../../src/github.com/containers/buildah ; pwd)
 
 codespell:
-	codespell -S Makefile,build,buildah,buildah.spec,imgtype,copy,AUTHORS,bin,vendor,.git,go.sum,CHANGELOG.md,changelog.txt,seccomp.json,.cirrus.yml,"*.xz,*.gz,*.tar,*.tgz,*ico,*.png,*.1,*.5,*.orig,*.rej" -L uint,iff,od
+	codespell -S Makefile,build,buildah,buildah.spec,imgtype,copy,AUTHORS,bin,vendor,.git,go.sum,CHANGELOG.md,changelog.txt,seccomp.json,.cirrus.yml,"*.xz,*.gz,*.tar,*.tgz,*ico,*.png,*.1,*.5,*.orig,*.rej" -L uint,iff,od,ERRO -w
 
 .PHONY: validate
 validate: install.tools
@@ -171,7 +174,7 @@ test-unit: tests/testreport/testreport
 	$(GO_TEST) -v -tags "$(STORAGETAGS) $(SECURITYTAGS)" -cover -race ./cmd/buildah -args --root $$tmp/root --runroot $$tmp/runroot --storage-driver vfs --signature-policy $(shell pwd)/tests/policy.json --registries-conf $(shell pwd)/tests/registries.conf
 
 vendor-in-container:
-	podman run --privileged --rm --env HOME=/root -v `pwd`:/src -w /src docker.io/library/golang:1.13 make vendor
+	podman run --privileged --rm --env HOME=/root -v `pwd`:/src -w /src docker.io/library/golang:1.16 make vendor
 
 .PHONY: vendor
 vendor:

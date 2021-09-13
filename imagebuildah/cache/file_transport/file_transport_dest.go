@@ -218,10 +218,7 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 			return types.BlobInfo{}, err
 		}
 	} else {
-		err = os.Remove(blobFile.Name())
-		if err != nil {
-			println(err.Error())
-		}
+		os.Remove(blobFile.Name())
 	}
 	succeeded = true
 	return types.BlobInfo{Digest: computedDigest, Size: size}, nil

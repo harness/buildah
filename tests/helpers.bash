@@ -7,7 +7,6 @@ TESTSDIR=${TESTSDIR:-$(dirname ${BASH_SOURCE})}
 STORAGE_DRIVER=${STORAGE_DRIVER:-vfs}
 PATH=$(dirname ${BASH_SOURCE})/../bin:${PATH}
 OCI=$(${BUILDAH_BINARY} info --format '{{.host.OCIRuntime}}' || command -v runc || command -v crun)
-
 # Default timeout for a buildah command.
 BUILDAH_TIMEOUT=${BUILDAH_TIMEOUT:-300}
 
@@ -16,7 +15,11 @@ BUILDAH_TIMEOUT=${BUILDAH_TIMEOUT:-300}
 # attached.
 export GPG_TTY=/dev/null
 
-function setup() {
+function setup(){
+    setup_tests
+}
+
+function setup_tests() {
     pushd "$(dirname "$(readlink -f "$BASH_SOURCE")")"
 
     # buildah/podman: "repository name must be lowercase".
@@ -45,9 +48,23 @@ EOF
 function starthttpd() {
     pushd ${2:-${TESTDIR}} > /dev/null
     go build -o serve ${TESTSDIR}/serve/serve.go
-    HTTP_SERVER_PORT=$((RANDOM+32768))
-    ./serve ${HTTP_SERVER_PORT} ${1:-${BATS_TMPDIR}} &
+    portfile=$(mktemp)
+    if test -z "${portfile}"; then
+        echo error creating temporaty file
+        exit 1
+    fi
+    ./serve ${1:-${BATS_TMPDIR}} 0 ${portfile} &
     HTTP_SERVER_PID=$!
+    waited=0
+    while ! test -s ${portfile} ; do
+        sleep 0.1
+        if test $((++waited)) -ge 300 ; then
+            echo test http server did not start within timeout
+            exit 1
+        fi
+    done
+    HTTP_SERVER_PORT=$(cat ${portfile})
+    rm -f ${portfile}
     popd > /dev/null
 }
 
@@ -60,7 +77,11 @@ function stophttpd() {
     true
 }
 
-function teardown() {
+function teardown(){
+    teardown_tests
+}
+
+function teardown_tests() {
     stophttpd
 
     # Workaround for #1991 - buildah + overlayfs leaks mount points.
@@ -131,7 +152,7 @@ function imgtype() {
 }
 
 function copy() {
-    ${COPY_BINARY} ${ROOTDIR_OPTS} ${BUILDAH_REGISTRY_OPTS} "$@"
+    ${COPY_BINARY} --max-parallel-downloads=1 ${ROOTDIR_OPTS} ${BUILDAH_REGISTRY_OPTS} "$@"
 }
 
 function podman() {
@@ -379,6 +400,13 @@ function check_options_flag_err() {
     flag="$1"
     [ "$status" -eq 125 ]
     [[ $output = *"No options ($flag) can be specified after"* ]]
+}
+
+#################
+#  is_rootless  #  Check if we run as normal user
+#################
+function is_rootless() {
+    [ "$(id -u)" -ne 0 ]
 }
 
 ####################

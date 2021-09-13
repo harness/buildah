@@ -22,7 +22,7 @@ func testFlagCompletion(t *testing.T, flags pflag.FlagSet, flagCompletions compl
 	// make sure no unnecessary flag completion functions are defined
 	for name := range flagCompletions {
 		if flag := flags.Lookup(name); flag == nil {
-			t.Errorf("Flag %q does not exists but has a shell completion function set.", name)
+			t.Errorf("Flag %q does not exist but has a shell completion function set.", name)
 		}
 	}
 }
@@ -48,7 +48,7 @@ func TestBudFlagsCompletion(t *testing.T) {
 func TestFromAndBudFlagsCompletions(t *testing.T) {
 	flags, err := GetFromAndBudFlags(&FromAndBudResults{}, &UserNSResults{}, &NameSpaceResults{})
 	if err != nil {
-		t.Error("Could load the from and bud flags.")
+		t.Error("Could load the from and build flags.")
 	}
 	flagCompletions := GetFromAndBudFlagsCompletions()
 	testFlagCompletion(t, flags, flagCompletions)
