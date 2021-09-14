@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/containers/buildah/define"
-
 	"github.com/containers/buildah/imagebuildah/cache/file_transport/explicitfilepath"
 	"github.com/containers/image/v5/docker/reference"
 	"github.com/containers/image/v5/image"

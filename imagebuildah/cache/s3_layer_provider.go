@@ -3,7 +3,6 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -65,8 +64,9 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		// image with that key is not in the cache
-		if !slp.tryDownloadLayerFromS3(layerKey, dir) {
-			return "", nil
+		existInS3, err := slp.tryDownloadLayerFromS3(layerKey, dir)
+		if !existInS3 || err != nil {
+			return "", errors.Wrapf(err, "Local cache does not exist and S3 cache failed to retrieve")
 		}
 	}
 
@@ -90,9 +90,11 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 	}()
 
 	imageIDBytes, err := ioutil.ReadFile(slp.imageIDFilepath(layerKey))
+	if err != nil {
+		return "", err
+	}
 
 	imageID := string(imageIDBytes)
-
 	destRef, err := is.Transport.ParseStoreReference(slp.store, "@"+imageID)
 	if err != nil {
 		return "", err
@@ -106,7 +108,7 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 	return imageID, nil
 }
 
-func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) bool {
+func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) (bool, error) {
 	s3Config := &aws.Config{
 		Credentials:      credentials.NewStaticCredentials(slp.s3CacheOptions.S3Key, slp.s3CacheOptions.S3Secret, ""),
 		Endpoint:         aws.String(slp.s3CacheOptions.S3EndPoint),
@@ -125,20 +127,21 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 	client := s3.New(sess)
 	err := client.ListObjectsPages(input, d.eachPage)
 	if err != nil {
-		return false
+		return false, err
 	}
 	content, err := os.ReadFile(path.Join(dir, "imageID"))
 	if err != nil {
-		return false
+		// cache does not exist
+		return false, nil
 	}
 	imageId := string(content)
 	fpath := path.Join(slp.location, "blobs", imageId)
 	if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
-		panic(err)
+		return false, errors.Wrapf(err, "Unable to Access %s", fpath)
 	}
 	file, err := os.Create(fpath)
 	if err != nil {
-		fmt.Println(err)
+		return false, errors.Wrapf(err, "Unable to Create file at %s", fpath)
 	}
 	defer file.Close()
 	getLayerInput := &s3.GetObjectInput{
@@ -146,31 +149,36 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 		Key:    aws.String(path.Join("blobs", imageId)),
 	}
 	numBytes, err := manager.Download(file, getLayerInput)
-	if err != nil || numBytes == 0 {
+	if err != nil {
 		// the layer might not exist
-		return false
+		return false, errors.Wrapf(err, "Cache layer download failed")
 	}
-	fmt.Println("Downloaded", file.Name(), numBytes, "bytes, as image config")
+	if numBytes == 0 {
+		return false, errors.Errorf("Downloaded cache is empty")
+	}
 
 	byteValue, err := ioutil.ReadFile(path.Join(dir, "manifest.json"))
 	if err != nil {
-		return false
+		return false, errors.Wrapf(err, "Failed to read manifest from downloaded cache for layer %s", layerKey)
 	}
 	var manifest Manifest
-	json.Unmarshal(byteValue, &manifest)
+	err = json.Unmarshal(byteValue, &manifest)
+	if err != nil {
+		return false, errors.Wrap(err, "Manifest is not a valid Json")
+	}
 	for _, layer := range manifest.Layers {
 		if len(layer.Digest) < 7 {
-			continue
+			return false, errors.Wrapf(err, "Failed to read manifest from downloaded cache for layer %s", layerKey)
 		}
 		imageId = layer.Digest[7:]
 		fpath := path.Join(slp.location, "blobs", imageId)
 		if _, err := os.Stat(fpath); os.IsNotExist(err) {
 			if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
-				panic(err)
+				return false, errors.Wrapf(err, "Unable to Access %s", fpath)
 			}
 			file, err := os.Create(fpath)
 			if err != nil {
-				fmt.Println(err)
+				return false, errors.Wrapf(err, "Unable to Create file at %s", fpath)
 			}
 			defer file.Close()
 			getLayerInput := &s3.GetObjectInput{
@@ -178,16 +186,16 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 				Key:    aws.String(path.Join("blobs", imageId)),
 			}
 			numBytes, err := manager.Download(file, getLayerInput)
-			if err != nil || numBytes == 0 {
+			if err != nil {
 				// the layer might not exist
-				return false
+				return false, errors.Wrapf(err, "Cache layer download failed")
 			}
-			fmt.Println("Downloaded", file.Name(), numBytes, "bytes, as image layer")
-		} else {
-			println(fpath, "existed in local cache, skipping download")
+			if numBytes == 0 {
+				return false, errors.Errorf("Downloaded cache is empty")
+			}
 		}
 	}
-	return true
+	return true, nil
 }
 
 type downloader struct {
@@ -204,26 +212,19 @@ func (d *downloader) eachPage(page *s3.ListObjectsOutput, more bool) bool {
 }
 
 func (d *downloader) downloadToFile(key string) {
-	// Create the directories in the path
 	file := filepath.Join(d.dir, key)
 	if err := os.MkdirAll(filepath.Dir(file), 0775); err != nil {
-		panic(err)
+		return
 	}
 
-	// Set up the local file
 	fd, err := os.Create(file)
 	if err != nil {
-		panic(err)
+		return
 	}
 	defer fd.Close()
 
-	// Download the file using the AWS SDK for Go
-	fmt.Printf("Downloading s3://%s/%s to %s...\n", d.bucket, key, file)
 	params := &s3.GetObjectInput{Bucket: &d.bucket, Key: &key}
-	_, err = d.Download(fd, params)
-	if err != nil {
-		println(err.Error())
-	}
+	d.Download(fd, params)
 }
 
 // Store returns the image id for the key.
@@ -290,7 +291,7 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 		}
 		_, err = uploader.Upload(input)
 		if err != nil {
-			println(err.Error())
+			return errors.Wrapf(err, "failed to upload image id to S3 %q", imageID)
 		}
 	}
 
