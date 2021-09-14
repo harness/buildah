@@ -161,9 +161,6 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 		layers = iopts.Layers
 	}
 	var distributedCacheOptions *define.DistributedCacheOptions = nil
-	if c.Flag("file-cache-dir").Value.String() != "" && c.Flag("s3-local-cache-dir").Value.String() != "" {
-		return errors.Errorf("file-cache-dir and s3-local-cache-dir should not be used at the same time")
-	}
 
 	if c.Flag("file-cache-dir").Value.String() != "" {
 		distributedCacheOptions = &define.DistributedCacheOptions{
@@ -302,6 +299,10 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 
 	if c.Flag("layers").Changed && c.Flag("no-cache").Changed {
 		return errors.Errorf("can only set one of 'layers' or 'no-cache'")
+	}
+
+	if c.Flag("file-cache-dir").Changed && c.Flag("s3-local-cache-dir").Changed {
+		return errors.Errorf("can only set one of 'file-cache-dir' or 's3-local-cache-dir'")
 	}
 
 	if (c.Flag("rm").Changed || c.Flag("force-rm").Changed) && (!c.Flag("layers").Changed && !c.Flag("no-cache").Changed) {
