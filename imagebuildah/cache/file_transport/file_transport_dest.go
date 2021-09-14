@@ -2,9 +2,11 @@ package file_transport
 
 import (
 	"context"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 
@@ -205,13 +207,21 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 			S3ForcePathStyle: aws.Bool(true),
 		}
 		sess := session.Must(session.NewSession(s3Config))
-		uploader := s3manager.NewUploader(sess)
-		input := &s3manager.UploadInput{
-			Bucket: aws.String(d.ref.s3Options.S3Bucket),
-			Key:    aws.String("blobs/" + computedDigest.Encoded()),
-			Body:   blobToUpload,
+		bucket := d.ref.s3Options.S3Bucket
+		key := path.Join("blobs", computedDigest.Encoded())
+		if !keyExists(sess, bucket, key) {
+			uploader := s3manager.NewUploader(sess)
+			input := &s3manager.UploadInput{
+				Bucket: aws.String(bucket),
+				Key:    aws.String(key),
+				Body:   blobToUpload,
+			}
+			_, err = uploader.Upload(input)
+			if err != nil {
+				// Upload failure should not fail the build
+				logrus.Warnf("Upload cache to S3 failed due to %s", err.Error())
+			}
 		}
-		_, err = uploader.Upload(input)
 	}
 
 	if _, err := os.Stat(blobPath); os.IsNotExist(err) {
@@ -223,6 +233,18 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 	}
 	succeeded = true
 	return types.BlobInfo{Digest: computedDigest, Size: size}, nil
+}
+
+func keyExists( sess *session.Session, bucket string, key string) bool {
+	s3svc := s3.New(sess)
+	_, err := s3svc.HeadObject(&s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 // TryReusingBlob checks whether the transport already contains, or can efficiently reuse, a blob, and if so, applies it to the current destination
