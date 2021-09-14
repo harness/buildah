@@ -8,6 +8,8 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -64,8 +66,13 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		// image with that key is not in the cache
 		existInS3, err := slp.tryDownloadLayerFromS3(layerKey, dir)
-		if !existInS3 || err != nil {
-			return "", errors.Wrapf(err, "Local cache does not exist and S3 cache failed to retrieve")
+		if !existInS3 {
+			return "", nil
+		}
+		if err != nil {
+			logrus.Warnf("Attempt to download from S3 Cache failed due to: %s", err.Error())
+			// the normal build without cache should be performed
+			return "", nil
 		}
 	}
 
