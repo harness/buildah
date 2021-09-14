@@ -91,13 +91,13 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 
 	imageIDBytes, err := ioutil.ReadFile(slp.imageIDFilepath(layerKey))
 	if err != nil {
-		return "", err
+		return "", errors.Wrapf(err, "Unable to read file for layer %s", layerKey)
 	}
 
 	imageID := string(imageIDBytes)
 	destRef, err := is.Transport.ParseStoreReference(slp.store, "@"+imageID)
 	if err != nil {
-		return "", err
+		return "",errors.Wrapf(err, "Unable to parse store reference for layer %s, image id: %s", layerKey, imageID)
 	}
 
 	_, err = copy.Image(ctx, policyContext, destRef, srcRef, nil)
