@@ -40,7 +40,6 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210820121016-41cdb8703e55
 	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b
-	golang.org/x/tools v0.1.5 // indirect
 	k8s.io/klog v1.0.0 // indirect
 )
 
