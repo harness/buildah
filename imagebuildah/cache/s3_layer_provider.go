@@ -136,27 +136,9 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 	}
 	imageId := string(content)
 	fpath := path.Join(slp.location, "blobs", imageId)
-	if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
-		return false, errors.Wrapf(err, "Unable to Access %s", fpath)
+	if slp.downloadFileIfNotExist(fpath, path.Join("blobs", imageId), manager) != nil {
+		return false, err
 	}
-	file, err := os.Create(fpath)
-	if err != nil {
-		return false, errors.Wrapf(err, "Unable to Create file at %s", fpath)
-	}
-	defer file.Close()
-	getLayerInput := &s3.GetObjectInput{
-		Bucket: aws.String(slp.s3CacheOptions.S3Bucket),
-		Key:    aws.String(path.Join("blobs", imageId)),
-	}
-	numBytes, err := manager.Download(file, getLayerInput)
-	if err != nil {
-		// the layer might not exist
-		return false, errors.Wrapf(err, "Cache layer download failed")
-	}
-	if numBytes == 0 {
-		return false, errors.Errorf("Downloaded cache is empty")
-	}
-
 	byteValue, err := ioutil.ReadFile(path.Join(dir, "manifest.json"))
 	if err != nil {
 		return false, errors.Wrapf(err, "Failed to read manifest from downloaded cache for layer %s", layerKey)
@@ -172,30 +154,37 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 		}
 		imageId = layer.Digest[7:]
 		fpath := path.Join(slp.location, "blobs", imageId)
-		if _, err := os.Stat(fpath); os.IsNotExist(err) {
-			if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
-				return false, errors.Wrapf(err, "Unable to Access %s", fpath)
-			}
-			file, err := os.Create(fpath)
-			if err != nil {
-				return false, errors.Wrapf(err, "Unable to Create file at %s", fpath)
-			}
-			defer file.Close()
-			getLayerInput := &s3.GetObjectInput{
-				Bucket: aws.String(slp.s3CacheOptions.S3Bucket),
-				Key:    aws.String(path.Join("blobs", imageId)),
-			}
-			numBytes, err := manager.Download(file, getLayerInput)
-			if err != nil {
-				// the layer might not exist
-				return false, errors.Wrapf(err, "Cache layer download failed")
-			}
-			if numBytes == 0 {
-				return false, errors.Errorf("Downloaded cache is empty")
-			}
+		if slp.downloadFileIfNotExist(fpath, path.Join("blobs", imageId), manager) != nil {
+			return false, err
 		}
 	}
 	return true, nil
+}
+
+func (slp *S3LayerProvider) downloadFileIfNotExist(fpath string, s3path string, manager *s3manager.Downloader) error{
+	if _, err := os.Stat(fpath); os.IsNotExist(err) {
+		if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
+			return errors.Wrapf(err, "Unable to Access %s", fpath)
+		}
+		file, err := os.Create(fpath)
+		if err != nil {
+			return errors.Wrapf(err, "Unable to Create file at %s", fpath)
+		}
+		defer file.Close()
+		getLayerInput := &s3.GetObjectInput{
+			Bucket: aws.String(slp.s3CacheOptions.S3Bucket),
+			Key:    aws.String(path.Join(s3path)),
+		}
+		numBytes, err := manager.Download(file, getLayerInput)
+		// the layer might not exist
+		if err != nil {
+			return errors.Wrapf(err, "Cache layer download failed")
+		}
+		if numBytes == 0 {
+			return errors.Errorf("Downloaded cache is empty")
+		}
+	}
+	return nil
 }
 
 type downloader struct {
