@@ -42,8 +42,7 @@ func NewS3LayerProvider(store storage.Store, systemContext *types.SystemContext,
 }
 
 type Manifest struct {
-	SchemaVersion string  `json:"schemaVersion"`
-	Config        string  `json:"config"`
+	SchemaVersion int     `json:"schemaVersion"`
 	Layers        []Layer `json:"layers"`
 }
 
