@@ -2,13 +2,14 @@ package file_transport
 
 import (
 	"context"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
+
+	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -235,7 +236,7 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 	return types.BlobInfo{Digest: computedDigest, Size: size}, nil
 }
 
-func keyExists( sess *session.Session, bucket string, key string) bool {
+func keyExists(sess *session.Session, bucket string, key string) bool {
 	s3svc := s3.New(sess)
 	_, err := s3svc.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(bucket),

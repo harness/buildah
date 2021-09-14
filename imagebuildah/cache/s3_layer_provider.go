@@ -97,7 +97,7 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 	imageID := string(imageIDBytes)
 	destRef, err := is.Transport.ParseStoreReference(slp.store, "@"+imageID)
 	if err != nil {
-		return "",errors.Wrapf(err, "Unable to parse store reference for layer %s, image id: %s", layerKey, imageID)
+		return "", errors.Wrapf(err, "Unable to parse store reference for layer %s, image id: %s", layerKey, imageID)
 	}
 
 	_, err = copy.Image(ctx, policyContext, destRef, srcRef, nil)
@@ -161,7 +161,7 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 	return true, nil
 }
 
-func (slp *S3LayerProvider) downloadFileIfNotExist(fpath string, s3path string, manager *s3manager.Downloader) error{
+func (slp *S3LayerProvider) downloadFileIfNotExist(fpath string, s3path string, manager *s3manager.Downloader) error {
 	if _, err := os.Stat(fpath); os.IsNotExist(err) {
 		if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
 			return errors.Wrapf(err, "Unable to Access %s", fpath)
