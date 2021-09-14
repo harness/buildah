@@ -9,13 +9,11 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/aws/aws-sdk-go/service/s3"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-
 	"github.com/containers/image/v5/types"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
@@ -204,7 +202,7 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 			Credentials:      credentials.NewStaticCredentials(d.ref.s3Options.S3Key, d.ref.s3Options.S3Secret, ""),
 			Endpoint:         aws.String(d.ref.s3Options.S3EndPoint),
 			Region:           aws.String(d.ref.s3Options.S3Region),
-			DisableSSL:       aws.Bool(true),
+			DisableSSL:       aws.Bool(d.ref.s3Options.S3DisableSSL),
 			S3ForcePathStyle: aws.Bool(true),
 		}
 		sess := session.Must(session.NewSession(s3Config))

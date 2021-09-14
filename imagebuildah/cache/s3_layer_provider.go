@@ -65,6 +65,7 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		// image with that key is not in the cache
+		// TODO: safer download if the program get interrupted
 		existInS3, err := slp.tryDownloadLayerFromS3(layerKey, dir)
 		if !existInS3 {
 			return "", nil
@@ -83,7 +84,7 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 
 	policyContext, err := util.GetPolicyContext(slp.systemContext)
 	if err != nil {
-		return "", err
+		return "", errors.Wrapf(err, "failed to get policy for %s", layerKey)
 	}
 	defer func() {
 		if destroyErr := policyContext.Destroy(); destroyErr != nil {
@@ -119,7 +120,7 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 		Credentials:      credentials.NewStaticCredentials(slp.s3CacheOptions.S3Key, slp.s3CacheOptions.S3Secret, ""),
 		Endpoint:         aws.String(slp.s3CacheOptions.S3EndPoint),
 		Region:           aws.String(slp.s3CacheOptions.S3Region),
-		DisableSSL:       aws.Bool(true),
+		DisableSSL:       aws.Bool(slp.s3CacheOptions.S3DisableSSL),
 		S3ForcePathStyle: aws.Bool(true),
 	}
 	sess := session.Must(session.NewSession(s3Config))
@@ -133,7 +134,7 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 	client := s3.New(sess)
 	err := client.ListObjectsPages(input, d.eachPage)
 	if err != nil {
-		return false, err
+		return false, errors.Wrapf(err, "Download manifest failed for layer %s", layerKey)
 	}
 	content, err := os.ReadFile(path.Join(dir, "imageID"))
 	if err != nil {
@@ -143,7 +144,7 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 	imageId := string(content)
 	fpath := path.Join(slp.location, "blobs", imageId)
 	if slp.downloadFileIfNotExist(fpath, path.Join("blobs", imageId), manager) != nil {
-		return false, err
+		return false, errors.Wrapf(err, "Download to file failed")
 	}
 	byteValue, err := ioutil.ReadFile(path.Join(dir, "manifest.json"))
 	if err != nil {
@@ -161,14 +162,15 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 		imageId = layer.Digest[7:]
 		fpath := path.Join(slp.location, "blobs", imageId)
 		if slp.downloadFileIfNotExist(fpath, path.Join("blobs", imageId), manager) != nil {
-			return false, err
+			return false, errors.Wrapf(err, "Download to file failed")
 		}
 	}
 	return true, nil
 }
 
 func (slp *S3LayerProvider) downloadFileIfNotExist(fpath string, s3path string, manager *s3manager.Downloader) error {
-	if _, err := os.Stat(fpath); os.IsNotExist(err) {
+	_, err := os.Stat(fpath)
+	if os.IsNotExist(err) {
 		if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
 			return errors.Wrapf(err, "Unable to Access %s", fpath)
 		}
@@ -189,6 +191,8 @@ func (slp *S3LayerProvider) downloadFileIfNotExist(fpath string, s3path string, 
 		if numBytes == 0 {
 			return errors.Errorf("Downloaded cache is empty")
 		}
+	} else if err != nil {
+		return errors.Wrapf(err, "Unable to access %s", fpath)
 	}
 	return nil
 }
@@ -272,7 +276,7 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 		Credentials:      credentials.NewStaticCredentials(slp.s3CacheOptions.S3Key, slp.s3CacheOptions.S3Secret, ""),
 		Endpoint:         aws.String(slp.s3CacheOptions.S3EndPoint),
 		Region:           aws.String(slp.s3CacheOptions.S3Region),
-		DisableSSL:       aws.Bool(true),
+		DisableSSL:       aws.Bool(slp.s3CacheOptions.S3DisableSSL),
 		S3ForcePathStyle: aws.Bool(true),
 	}
 	sess := session.Must(session.NewSession(s3Config))

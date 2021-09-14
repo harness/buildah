@@ -170,11 +170,12 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 
 	if c.Flag("s3-local-cache-dir").Value.String() != "" {
 		s3CacheOptions := &define.S3CacheOptions{
-			S3Bucket:   iopts.S3Bucket,
-			S3EndPoint: iopts.S3EndPoint,
-			S3Region:   iopts.S3Region,
-			S3Key:      iopts.S3Key,
-			S3Secret:   iopts.S3Secret,
+			S3Bucket:     iopts.S3Bucket,
+			S3EndPoint:   iopts.S3EndPoint,
+			S3Region:     iopts.S3Region,
+			S3Key:        iopts.S3Key,
+			S3Secret:     iopts.S3Secret,
+			S3DisableSSL: iopts.S3DisableSSL,
 		}
 		distributedCacheOptions = &define.DistributedCacheOptions{
 			FileCacheDirectory: iopts.S3CacheDir,

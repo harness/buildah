@@ -84,11 +84,12 @@ type DistributedCacheOptions struct {
 }
 
 type S3CacheOptions struct {
-	S3Bucket   string
-	S3EndPoint string
-	S3Region   string
-	S3Key      string
-	S3Secret   string
+	S3Bucket     string
+	S3EndPoint   string
+	S3Region     string
+	S3Key        string
+	S3Secret     string
+	S3DisableSSL bool
 }
 
 // BuildOptions can be used to alter how an image is built.
