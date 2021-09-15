@@ -22,6 +22,7 @@ import (
 
 type buildOptions struct {
 	*buildahcli.LayerResults
+	*buildahcli.S3CacheResults
 	*buildahcli.BudResults
 	*buildahcli.UserNSResults
 	*buildahcli.FromAndBudResults
@@ -38,6 +39,7 @@ func init() {
 
 	layerFlagsResults := buildahcli.LayerResults{}
 	buildFlagResults := buildahcli.BudResults{}
+	s3FlagsResults := buildahcli.S3CacheResults{}
 	fromAndBudResults := buildahcli.FromAndBudResults{}
 	userNSResults := buildahcli.UserNSResults{}
 	namespaceResults := buildahcli.NameSpaceResults{}
@@ -50,6 +52,7 @@ func init() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			br := buildOptions{
 				&layerFlagsResults,
+				&s3FlagsResults,
 				&buildFlagResults,
 				&userNSResults,
 				&fromAndBudResults,
@@ -72,6 +75,7 @@ func init() {
 	buildFlags.StringVar(&buildFlagResults.Runtime, "runtime", util.Runtime(), "`path` to an alternate runtime. Use BUILDAH_RUNTIME environment variable to override.")
 
 	layerFlags := buildahcli.GetLayerFlags(&layerFlagsResults)
+	s3Flags := buildahcli.GetS3Flags(&s3FlagsResults)
 	fromAndBudFlags, err := buildahcli.GetFromAndBudFlags(&fromAndBudResults, &userNSResults, &namespaceResults)
 	if err != nil {
 		logrus.Errorf("failed to setup From and Build flags: %v", err)
@@ -81,6 +85,7 @@ func init() {
 	flags.AddFlagSet(&buildFlags)
 	flags.AddFlagSet(&layerFlags)
 	flags.AddFlagSet(&fromAndBudFlags)
+	flags.AddFlagSet(&s3Flags)
 	flags.SetNormalizeFunc(buildahcli.AliasFlags)
 
 	rootCmd.AddCommand(buildCommand)
@@ -156,9 +161,25 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 		layers = iopts.Layers
 	}
 	var distributedCacheOptions *define.DistributedCacheOptions = nil
+
 	if c.Flag("file-cache-dir").Value.String() != "" {
 		distributedCacheOptions = &define.DistributedCacheOptions{
 			FileCacheDirectory: iopts.FileCacheDir,
+		}
+	}
+
+	if c.Flag("s3-local-cache-dir").Value.String() != "" {
+		s3CacheOptions := &define.S3CacheOptions{
+			S3Bucket:     iopts.S3Bucket,
+			S3EndPoint:   iopts.S3EndPoint,
+			S3Region:     iopts.S3Region,
+			S3Key:        iopts.S3Key,
+			S3Secret:     iopts.S3Secret,
+			S3DisableSSL: iopts.S3DisableSSL,
+		}
+		distributedCacheOptions = &define.DistributedCacheOptions{
+			FileCacheDirectory: iopts.S3CacheDir,
+			S3Options:          s3CacheOptions,
 		}
 	}
 
@@ -279,6 +300,10 @@ func buildCmd(c *cobra.Command, inputArgs []string, iopts buildOptions) error {
 
 	if c.Flag("layers").Changed && c.Flag("no-cache").Changed {
 		return errors.Errorf("can only set one of 'layers' or 'no-cache'")
+	}
+
+	if c.Flag("file-cache-dir").Changed && c.Flag("s3-local-cache-dir").Changed {
+		return errors.Errorf("can only set one of 'file-cache-dir' or 's3-local-cache-dir'")
 	}
 
 	if (c.Flag("rm").Changed || c.Flag("force-rm").Changed) && (!c.Flag("layers").Changed && !c.Flag("no-cache").Changed) {

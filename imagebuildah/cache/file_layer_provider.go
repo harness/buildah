@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/containers/buildah/imagebuildah/cache/file_transport"
+	"github.com/containers/buildah/imagebuildah/cache/cache_transport"
 	"github.com/containers/buildah/util"
 	"github.com/containers/image/v5/copy"
 	is "github.com/containers/image/v5/storage"
@@ -55,7 +55,7 @@ func (flp *FileLayerProvider) Load(ctx context.Context, layerKey string) (string
 		return "", nil
 	}
 
-	srcRef, err := file_transport.NewReference(dir)
+	srcRef, err := cache_transport.NewReference(dir, nil)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create reference for %s", layerKey)
 	}
@@ -116,7 +116,7 @@ func (flp *FileLayerProvider) Store(ctx context.Context, layerKey string, imageI
 
 	dir := flp.keyDirectory(layerKey)
 
-	destRef, err := file_transport.NewReference(dir)
+	destRef, err := cache_transport.NewReference(dir, nil)
 	if err != nil {
 		return err
 	}

@@ -28,6 +28,17 @@ type LayerResults struct {
 	FileCacheDir string
 }
 
+// S3CacheResults represents the results of the S3 flags
+type S3CacheResults struct {
+	S3CacheDir   string
+	S3Bucket     string
+	S3EndPoint   string
+	S3Region     string
+	S3Key        string
+	S3Secret     string
+	S3DisableSSL bool
+}
+
 // UserNSResults represents the results for the UserNS flags
 type UserNSResults struct {
 	UserNS            string
@@ -169,6 +180,19 @@ func GetLayerFlags(flags *LayerResults) pflag.FlagSet {
 	fs.BoolVar(&flags.ForceRm, "force-rm", false, "Always remove intermediate containers after a build, even if the build is unsuccessful.")
 	fs.BoolVar(&flags.Layers, "layers", UseLayers(), fmt.Sprintf("cache intermediate layers during build. Use BUILDAH_LAYERS environment variable to override."))
 	fs.StringVar(&flags.FileCacheDir, "file-cache-dir", "", "root directory for file system based distributed cache.")
+	return fs
+}
+
+// GetS3Flags returns the common flags for S3
+func GetS3Flags(flags *S3CacheResults) pflag.FlagSet {
+	fs := pflag.FlagSet{}
+	fs.StringVar(&flags.S3CacheDir, "s3-local-cache-dir", "", "local directory for S3 based cache.")
+	fs.StringVar(&flags.S3Bucket, "s3-bucket", "", "S3 bucket name")
+	fs.StringVar(&flags.S3EndPoint, "s3-endpoint", "", "S3 endpoint address")
+	fs.StringVar(&flags.S3Region, "s3-region", "", "s3 region")
+	fs.StringVar(&flags.S3Key, "s3-key", "", "S3 Access key")
+	fs.StringVar(&flags.S3Secret, "s3-secret", "", "S3 Access secret")
+	fs.BoolVar(&flags.S3DisableSSL, "s3-use-ssl", false, "Enable SSL for S3 connections")
 	return fs
 }
 
