@@ -1,4 +1,4 @@
-package file_transport
+package cache_transport
 
 import (
 	"context"
@@ -193,6 +193,7 @@ func (d *fileImageDestination) PutBlob(ctx context.Context, stream io.Reader, in
 	// need to explicitly close the file, since a rename won't otherwise not work on Windows
 	blobFile.Close()
 	explicitClosed = true
+	//TODO: make uploads async
 	if d.ref.s3Options != nil {
 		blobToUpload, err := os.Open(blobFile.Name())
 		if err != nil {

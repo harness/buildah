@@ -8,15 +8,13 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/containers/buildah/define"
-	"github.com/containers/buildah/imagebuildah/cache/file_transport"
+	"github.com/containers/buildah/imagebuildah/cache/cache_transport"
 	"github.com/containers/buildah/util"
 	"github.com/containers/image/v5/copy"
 	is "github.com/containers/image/v5/storage"
@@ -71,13 +69,11 @@ func (slp *S3LayerProvider) Load(ctx context.Context, layerKey string) (string, 
 			return "", nil
 		}
 		if err != nil {
-			logrus.Warnf("Attempt to download from S3 Cache failed due to: %s", err.Error())
-			// the normal build without cache should be performed
-			return "", nil
+			return "", errors.Wrapf(err, "Failed to retrieve cache from S3 %s", layerKey)
 		}
 	}
 
-	srcRef, err := file_transport.NewReference(dir, slp.s3CacheOptions)
+	srcRef, err := cache_transport.NewReference(dir, slp.s3CacheOptions)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create reference for %s", layerKey)
 	}
@@ -170,29 +166,31 @@ func (slp *S3LayerProvider) tryDownloadLayerFromS3(layerKey string, dir string) 
 
 func (slp *S3LayerProvider) downloadFileIfNotExist(fpath string, s3path string, manager *s3manager.Downloader) error {
 	_, err := os.Stat(fpath)
-	if os.IsNotExist(err) {
-		if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
-			return errors.Wrapf(err, "Unable to Access %s", fpath)
-		}
-		file, err := os.Create(fpath)
-		if err != nil {
-			return errors.Wrapf(err, "Unable to Create file at %s", fpath)
-		}
-		defer file.Close()
-		getLayerInput := &s3.GetObjectInput{
-			Bucket: aws.String(slp.s3CacheOptions.S3Bucket),
-			Key:    aws.String(path.Join(s3path)),
-		}
-		numBytes, err := manager.Download(file, getLayerInput)
-		// the layer might not exist
-		if err != nil {
-			return errors.Wrapf(err, "Cache layer download failed")
-		}
-		if numBytes == 0 {
-			return errors.Errorf("Downloaded cache is empty")
-		}
-	} else if err != nil {
+	if err == nil {
+		return nil
+	}
+	if !os.IsNotExist(err) {
 		return errors.Wrapf(err, "Unable to access %s", fpath)
+	}
+	if err := os.MkdirAll(filepath.Dir(fpath), 0775); err != nil {
+		return errors.Wrapf(err, "Unable to Access %s", fpath)
+	}
+	file, err := os.Create(fpath)
+	if err != nil {
+		return errors.Wrapf(err, "Unable to Create file at %s", fpath)
+	}
+	defer file.Close()
+	getLayerInput := &s3.GetObjectInput{
+		Bucket: aws.String(slp.s3CacheOptions.S3Bucket),
+		Key:    aws.String(path.Join(s3path)),
+	}
+	numBytes, err := manager.Download(file, getLayerInput)
+	// the layer might not exist
+	if err != nil {
+		return errors.Wrapf(err, "Cache layer download failed")
+	}
+	if numBytes == 0 {
+		return errors.Errorf("Downloaded cache is empty")
 	}
 	return nil
 }
@@ -210,6 +208,7 @@ func (d *downloader) eachPage(page *s3.ListObjectsOutput, more bool) bool {
 	return true
 }
 
+//TODO: fix this to propagate the potential error
 func (d *downloader) downloadToFile(key string) {
 	file := filepath.Join(d.dir, key)
 	if err := os.MkdirAll(filepath.Dir(file), 0775); err != nil {
@@ -250,7 +249,7 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 
 	dir := slp.keyDirectory(layerKey)
 
-	destRef, err := file_transport.NewReference(dir, slp.s3CacheOptions)
+	destRef, err := cache_transport.NewReference(dir, slp.s3CacheOptions)
 	if err != nil {
 		return err
 	}
@@ -282,7 +281,10 @@ func (slp *S3LayerProvider) Store(ctx context.Context, layerKey string, imageID 
 	sess := session.Must(session.NewSession(s3Config))
 	uploader := s3manager.NewUploader(sess)
 	for _, s := range file {
-		blob, _ := os.Open(path.Join(dir, s.Name()))
+		blob, err := os.Open(path.Join(dir, s.Name()))
+		if err != nil {
+			return errors.Wrapf(err, "Cannot access file %s", path.Join(dir, s.Name()))
+		}
 		input := &s3manager.UploadInput{
 			Bucket: aws.String(slp.s3CacheOptions.S3Bucket),
 			Key:    aws.String(path.Join(layerKey, s.Name())),
